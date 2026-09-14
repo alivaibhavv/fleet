@@ -1,0 +1,100 @@
+{
+  "_comment": "Copy to registry.json and edit. Every job is watched through a signal it ALREADY produces - a log it writes, a port it answers on, a container that exists - so nothing you run has to be modified to be covered. max_age_h is how long silence is acceptable; set it to roughly 1.5x the job's own interval.",
+
+  "not_watchable": [
+    "Anything that runs off this machine and exposes no local signal. Write it down here so the gap is visible rather than forgotten."
+  ],
+
+  "jobs": [
+    {
+      "name": "Example: a long-running gateway",
+      "launchd": "com.example.gateway",
+      "must_be_running": true,
+      "log": "~/Library/Logs/example/gateway.log",
+      "_why": "liveness is process presence - an idle gateway logs nothing, so do not set max_age_h here",
+      "remedy": { "action": "launchctl_kickstart", "args": { "label": "com.example.gateway" } }
+    },
+
+    {
+      "name": "Example: a scheduled job that must write a log",
+      "launchd": "com.example.hourly",
+      "log": "~/example/logs/hourly.log",
+      "max_age_h": 2,
+      "error_lines": {
+        "tail_lines": 40,
+        "token": "ERROR",
+        "max": 3,
+        "note": "it exits 0 every hour while most of its work fails"
+      },
+      "_why": "exit code 0 with a log full of errors is still a failure",
+      "remedy": {
+        "action": "launchctl_kickstart",
+        "args": { "label": "com.example.hourly" },
+        "max_attempts_per_day": 2,
+        "cooldown_minutes": 45,
+        "verify_wait": 60
+      }
+    },
+
+    {
+      "name": "Example: a job that runs on time and does nothing",
+      "launchd": "com.example.publisher",
+      "log": "~/example/logs/publisher.log",
+      "max_age_h": 8,
+      "stall": {
+        "patterns": ["nothing to publish", "HTTP 4", "no draft in"],
+        "tail_lines": 60,
+        "min_hits": 3,
+        "note": "exits 0 and saves nothing"
+      },
+      "_why": "the failure mode error-alerting can never catch: a clean exit with no output",
+      "remedy": { "action": "escalate", "reason": "look at the log before restarting it" }
+    },
+
+    {
+      "name": "Example: a container",
+      "docker": "example-service",
+      "require_restart_policy": true,
+      "http": { "url": "http://localhost:8080/healthz", "timeout": 10 },
+      "_why": "require_restart_policy flags a container running with RestartPolicy=no - it will not come back after a reboot",
+      "remedy": { "action": "docker_restart", "args": { "container": "example-service" }, "verify_wait": 30 }
+    },
+
+    {
+      "name": "Example: a service where HTTP 200 is not proof",
+      "http": {
+        "url": "https://example.com/sitemap.xml",
+        "timeout": 25,
+        "expect": "<urlset",
+        "reject": "Parked Domain name",
+        "note": "sitemap.xml is not returning real XML - a parking page or an error"
+      },
+      "_why": "a status-only check calls a noindex parking page healthy. expect/reject read the body.",
+      "remedy": { "action": "escalate", "reason": "upstream - DNS origin or the host, nothing local can fix it" }
+    },
+
+    {
+      "name": "Example: an app another tool depends on",
+      "http": { "url": "http://127.0.0.1:27123/", "timeout": 8 },
+      "_why": "a desktop app serving a local API. If someone quits it, every agent using that API loses a tool silently.",
+      "remedy": { "action": "open_app", "args": { "app": "SomeApp" }, "verify_wait": 25 }
+    },
+
+    {
+      "name": "Example: n8n, proving work happened",
+      "docker": "n8n",
+      "http": { "url": "http://localhost:5678/healthz", "timeout": 8 },
+      "n8n_executions": true,
+      "_why": "a healthy container that has never executed an active workflow is the running-but-doing-nothing case",
+      "remedy": { "action": "docker_restart", "args": { "container": "n8n" }, "verify_wait": 30 }
+    },
+
+    {
+      "name": "Example: something you switched off on purpose",
+      "log": "~/example/logs/scanner.log",
+      "max_age_h": 3,
+      "disabled": true,
+      "_why": "reports as OFF, never as ok - so a job you paused for an afternoon does not quietly stay off for a month"
+    }
+  ]
+}

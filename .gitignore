@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# Your fleet, not the tool.
+#
+# registry.json describes YOUR machine: hostnames, container names, origin IP
+# addresses, internal URLs. Publishing it is how people accidentally hand out
+# the origin address that sits behind their CDN. Start from
+# registry.example.json instead; your real one stays local.
+# ---------------------------------------------------------------------------
+registry.json
+add_remedies.py
+
+# Runtime state — regenerated every run, no value in history
+state.json
+status.json
+medic-state.json
+*.lock
+
+# Logs and the audit trail
+*.log
+*.jsonl
+tgtest.out
+
+# Rotated logs
+*.log.1
+*.log.2
+
+# Backups this tool and its repairs leave behind
+*.bak
+*.bak-*
+*.bak.*
+*.orig
+_*.py
+repair-backup-*/
+fleet-backups/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/

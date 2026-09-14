@@ -1,0 +1,47 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Run the test suite
+        run: python -m pytest tests/ -v
+
+      - name: Both entry points must import and run --help cleanly
+        run: |
+          python -c "import watch, medic; print('imports ok')"
+          python medic.py --status
+
+      - name: The shipped example config must be valid JSON
+        run: python -c "import json; json.load(open('registry.example.json')); print('example registry ok')"
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the shell scripts parse
+        run: |
+          for f in *.sh bin/*; do
+            [ -f "$f" ] || continue
+            head -1 "$f" | grep -q '^#!.*\(bash\|sh\)' || continue
+            bash -n "$f" && echo "ok  $f"
+          done
